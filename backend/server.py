@@ -7,6 +7,49 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import time
+import pickle
+
+
+# --- Load XGBoost models once at server startup ---
+with open("xgb_RecommendedReps.pkl", "rb") as f:
+    model_reps = pickle.load(f)
+
+with open("xgb_RecommendedSets.pkl", "rb") as f:
+    model_sets = pickle.load(f)
+
+with open("xgb_RecommendedWeightLoad_kg.pkl", "rb") as f:
+    model_weight = pickle.load(f)
+
+
+
+# === CONSTANT ORDER OF FEATURES ===
+FEATURE_ORDER = [
+    "Exercise", "Sex", "Age", "Height_cm", "Weight_kg",
+    "ExperienceLevel", "CurrentWeightLoad_kg", "CurrentSets", "CurrentReps", "FormScore"
+]
+
+def get_recommendation(exercise_num, sex_int, age, height, weight, experience, load, sets, reps, avg_score):
+    X = np.array([[
+        exercise_num,
+        sex_int,
+        age,
+        height,
+        weight,
+        experience,
+        load,
+        sets,
+        reps,
+        avg_score
+    ]], dtype=float)
+
+    reps_pred = int(model_reps.predict(X)[0])
+    sets_pred = int(model_sets.predict(X)[0])
+    weight_pred = float(model_weight.predict(X)[0])
+    return {
+        "recommended_reps": reps_pred,
+        "recommended_sets": sets_pred,
+        "recommended_weight": weight_pred
+    }
 
 app = Flask(__name__)
 CORS(app)
@@ -28,13 +71,38 @@ def analyze():
     print(f"Workout: {workout}")
     print(f"User Data: {user}")
 
+       # ✅ Convert user inputs to correct data types
+    try:
+        age = int(user.get("age", 0))
+        height = float(user.get("height", 0))
+        weight = float(user.get("weight", 0))
+        sex_str = user.get("sex", "M")
+        sex_map = {"M": 1, "Male": 1, "F": 0, "Female": 0}
+        sex_int = sex_map.get(sex_str, 1)  # default to 1 (Male) if not found
+        experience_str = user.get("experience", "Beginner")
+        exp_map = {"Beginner": 1, "Intermediate": 2, "Advanced": 0}
+        experience = exp_map.get(experience_str, 0)
+        workout_str = workout
+        workout_map = {"Barbell Row": 0, "Bench Press": 1, "Deadlift": 2, "Overhead Press": 3, "Squat": 4}
+        workout_num = workout_map.get(workout_str, -1)  # -1 if not found
+        load = float(user.get("load", 0))
+        sets = int(user.get("sets", 0))
+        reps = int(user.get("reps", 0))
+    except ValueError as e:
+        print(f"❌ Error converting user inputs: {e}")
+        return jsonify({"error": "Invalid input types"}), 400
+
+    # 👇 THIS LINE IS WHAT CONFIRMS IT WORKED
+    print(f"✅ Parsed Inputs → age: {age} (int), height: {height} (float), weight: {weight} (float), "
+      f"sex: {sex_int}, exp: {experience}, workout: {workout_num}, load: {load}, sets: {sets}, reps: {reps}")
+
     # Map workout to correct analyzer
     analyzers = {
         "Squat": SquatAnalyzer,
         "Deadlift": DeadliftAnalyzer,
         "Bench Press": BenchPressAnalyzer,
         "Overhead Press": OverheadPressAnalyzer,
-        "Row": RowAnalyzer
+        "Barbell Row": RowAnalyzer
     }
 
     if workout not in analyzers:
@@ -124,15 +192,28 @@ def analyze():
         # Compute final stats
         # Ensure we don't divide by zero if 0 reps were recorded
         avg_score = round(sum(form_scores) / len(form_scores), 2) if form_scores else 0
-        
+
+        prediction = get_recommendation(
+            workout_num, # Exercise (int)
+            sex_int, # Sex (int)
+            age, # Age (int)
+            height, # Height_cm (float)
+            weight, # Weight_kg (float)
+            experience, # ExperienceLevel (int)
+            load, # CurrentWeightLoad_kg (float)
+            sets, # CurrentSets (int)
+            reps, # CurrentReps (int)
+            avg_score # FormScore (float)
+        )
         # Prepare the result object
         result = {
             "workout": workout,
             "reps": rep_count,
             "avg_score": avg_score,
-            "details": form_scores
+            "details": form_scores,
+            "recommendation": prediction
         }
-
+        
         print("=== Workout Completed ===")
         print(result)
         return jsonify(result)

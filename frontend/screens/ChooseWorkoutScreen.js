@@ -13,7 +13,7 @@
     { name: "Deadlift", desc: "Posterior Chain & Core" },
     { name: "Bench Press", desc: "Upper Body Push" },
     { name: "Overhead Press", desc: "Shoulders & Triceps" },
-    { name: "Row", desc: "Back & Upper Pull" },
+    { name: "Barbell Row", desc: "Back & Upper Pull" },
   ];
 
   export default function ChooseWorkoutScreen({ navigation }) {
