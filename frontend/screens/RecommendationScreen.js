@@ -8,12 +8,6 @@ import { FontAwesome5 } from '@expo/vector-icons'; // Assuming you have Expo Vec
  * 0.5 -> 3
  * 0.0 -> 1
  */
-const convertScoreTo5Point = (score) => {
-    // Formula: (score_0_to_1 * 4) + 1, rounded to nearest integer
-    const convertedScore = Math.round((score * 4) + 1);
-    // Ensure the score stays within the 1-5 boundary
-    return Math.min(5, Math.max(1, convertedScore));
-};
 
 export default function RecommendationScreen({ route, navigation }) {
   // Get the analysis result
@@ -26,7 +20,8 @@ export default function RecommendationScreen({ route, navigation }) {
   const workoutName = workout?.name || workout;
 
   // --- NEW: Convert the 0.0-1.0 average score to 1-5 ---
-  const score5Point = convertScoreTo5Point(avg_score);
+ const score5Point = Math.round(avg_score); // Already 1–5
+
   
   let feedbackMessage;
   let scoreColor;
@@ -50,7 +45,7 @@ export default function RecommendationScreen({ route, navigation }) {
 
   // Generate a simple list of performance details from the 'details' array
   const repDetails = (details || []).map((rawScore, index) => {
-    const repScore5Point = convertScoreTo5Point(rawScore);
+    const repScore5Point = Math.round(rawScore);
     let repColor;
     if (repScore5Point >= 4) repColor = "#4CAF50";
     else if (repScore5Point >= 3) repColor = "#FFC107";

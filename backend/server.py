@@ -117,9 +117,13 @@ def analyze():
         target_reps = int(user.get("reps", 8))
 
         # Camera setup
-        cap = cv2.VideoCapture(0) 
+        print("📸 Opening camera...")
+
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
         if not cap.isOpened():
-             raise IOError("Cannot open webcam. Check index (0) or if another app is using it.")
+            raise IOError("Cannot open webcam. Check index (0) or if another app is using it.")
+        print("✅ Webcam opened successfully!")
+
 
         rep_count = 0
         form_scores = []
@@ -192,6 +196,12 @@ def analyze():
         # Compute final stats
         # Ensure we don't divide by zero if 0 reps were recorded
         avg_score = round(sum(form_scores) / len(form_scores), 2) if form_scores else 0
+        # --- 🔁 Convert 0.0–1.0 scale → 1–5 scale ---
+
+        scaled_details = [round(s, 1) for s in form_scores]
+        scaled_avg_score = round(sum(scaled_details) / len(scaled_details)) if scaled_details else 0
+
+
 
         prediction = get_recommendation(
             workout_num, # Exercise (int)
@@ -203,14 +213,16 @@ def analyze():
             load, # CurrentWeightLoad_kg (float)
             sets, # CurrentSets (int)
             reps, # CurrentReps (int)
-            avg_score # FormScore (float)
+            scaled_avg_score  # ✅ use scaled 1–5 score here  
         )
         # Prepare the result object
+
+        
         result = {
             "workout": workout,
             "reps": rep_count,
-            "avg_score": avg_score,
-            "details": form_scores,
+            "avg_score": scaled_avg_score,
+            "details": scaled_details,
             "recommendation": prediction
         }
         

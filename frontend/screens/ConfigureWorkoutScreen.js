@@ -75,7 +75,7 @@ const handleRepsChange = (value) => {
 
     try {
         // This axios call BLOCKS until the Python server returns the final analysis result
-        const res = await axios.post("http://192.168.68.104:5000/analyze", {
+        const res = await axios.post("http://192.168.68.108:5000/analyze", {
         workout: workout.name,
         user: { age, sex, height, weight, experience, load, sets, reps },
       });
