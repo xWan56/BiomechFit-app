@@ -20,22 +20,18 @@ with open("xgb_RecommendedSets.pkl", "rb") as f:
 with open("xgb_RecommendedWeightLoad_kg.pkl", "rb") as f:
     model_weight = pickle.load(f)
 
-
-
 # === CONSTANT ORDER OF FEATURES ===
 FEATURE_ORDER = [
-    "Exercise", "Sex", "Age", "Height_cm", "Weight_kg",
-    "ExperienceLevel", "CurrentWeightLoad_kg", "CurrentSets", "CurrentReps", "FormScore"
+    "Exercise", "Sex", "Age", "Height_cm", "Weight_kg", "CurrentWeightLoad_kg", "CurrentSets", "CurrentReps", "FormScore"
 ]
 
-def get_recommendation(exercise_num, sex_int, age, height, weight, experience, load, sets, reps, avg_score):
+def get_recommendation(exercise_num, sex_int, age, height, weight, load, sets, reps, avg_score):
     X = np.array([[
         exercise_num,
         sex_int,
         age,
         height,
         weight,
-        experience,
         load,
         sets,
         reps,
@@ -77,13 +73,10 @@ def analyze():
         height = float(user.get("height", 0))
         weight = float(user.get("weight", 0))
         sex_str = user.get("sex", "M")
-        sex_map = {"M": 1, "Male": 1, "F": 0, "Female": 0}
+        sex_map = {"M": 0, "Male": 0, "F": 1, "Female": 1}
         sex_int = sex_map.get(sex_str, 1)  # default to 1 (Male) if not found
-        experience_str = user.get("experience", "Beginner")
-        exp_map = {"Beginner": 1, "Intermediate": 2, "Advanced": 0}
-        experience = exp_map.get(experience_str, 0)
         workout_str = workout
-        workout_map = {"Barbell Row": 0, "Bench Press": 1, "Deadlift": 2, "Overhead Press": 3, "Squat": 4}
+        workout_map = {"Squat": 0, "Deadlift": 1, "Bench Press": 2, "Overhead Press": 3, "Barbell Row": 4}
         workout_num = workout_map.get(workout_str, -1)  # -1 if not found
         load = float(user.get("load", 0))
         sets = int(user.get("sets", 0))
@@ -94,7 +87,7 @@ def analyze():
 
     # 👇 THIS LINE IS WHAT CONFIRMS IT WORKED
     print(f"✅ Parsed Inputs → age: {age} (int), height: {height} (float), weight: {weight} (float), "
-      f"sex: {sex_int}, exp: {experience}, workout: {workout_num}, load: {load}, sets: {sets}, reps: {reps}")
+      f"sex: {sex_int}, workout: {workout_num}, current weight load: {load}, current sets: {sets}, current reps: {reps}")
 
     # Map workout to correct analyzer
     analyzers = {
@@ -117,13 +110,9 @@ def analyze():
         target_reps = int(user.get("reps", 8))
 
         # Camera setup
-        print("📸 Opening camera...")
-
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(0) 
         if not cap.isOpened():
-            raise IOError("Cannot open webcam. Check index (0) or if another app is using it.")
-        print("✅ Webcam opened successfully!")
-
+             raise IOError("Cannot open webcam. Check index (0) or if another app is using it.")
 
         rep_count = 0
         form_scores = []
@@ -196,12 +185,6 @@ def analyze():
         # Compute final stats
         # Ensure we don't divide by zero if 0 reps were recorded
         avg_score = round(sum(form_scores) / len(form_scores), 2) if form_scores else 0
-        # --- 🔁 Convert 0.0–1.0 scale → 1–5 scale ---
-
-        scaled_details = [round(s, 1) for s in form_scores]
-        scaled_avg_score = round(sum(scaled_details) / len(scaled_details)) if scaled_details else 0
-
-
 
         prediction = get_recommendation(
             workout_num, # Exercise (int)
@@ -209,21 +192,23 @@ def analyze():
             age, # Age (int)
             height, # Height_cm (float)
             weight, # Weight_kg (float)
-            experience, # ExperienceLevel (int)
             load, # CurrentWeightLoad_kg (float)
             sets, # CurrentSets (int)
             reps, # CurrentReps (int)
-            scaled_avg_score  # ✅ use scaled 1–5 score here  
+            round(avg_score) # FormScore (float)
         )
         # Prepare the result object
-
-        
         result = {
             "workout": workout,
             "reps": rep_count,
-            "avg_score": scaled_avg_score,
-            "details": scaled_details,
-            "recommendation": prediction
+            "avg_score": avg_score,
+            "details": form_scores,
+            "recommendation": prediction,
+            "user": {
+                "load": load,
+                "sets": sets,
+                "reps": reps
+            }
         }
         
         print("=== Workout Completed ===")

@@ -2,13 +2,6 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ImageBackground } from "react-native";
 import { FontAwesome5 } from '@expo/vector-icons'; // Assuming you have Expo Vector Icons
 
-/**
- * Converts a score from the 0.0-1.0 scale (from backend) to a 1-5 point scale (for display).
- * 1.0 -> 5
- * 0.5 -> 3
- * 0.0 -> 1
- */
-
 export default function RecommendationScreen({ route, navigation }) {
   // Get the analysis result
   const { analysisResult } = route.params; 
@@ -19,9 +12,11 @@ export default function RecommendationScreen({ route, navigation }) {
   
   const workoutName = workout?.name || workout;
 
-  // --- NEW: Convert the 0.0-1.0 average score to 1-5 ---
- const score5Point = Math.round(avg_score); // Already 1–5
+  const score5Point = Math.round(avg_score); 
 
+  const roundToNearestHalf = (num) => {
+  return Math.round(num * 2) / 2;
+  };
   
   let feedbackMessage;
   let scoreColor;
@@ -101,16 +96,26 @@ export default function RecommendationScreen({ route, navigation }) {
                     <Text style={styles.text}>No detailed rep scores recorded.</Text>
                 )}
             </View>
+            {analysisResult?.user && (
+              <View style={styles.userInputContainer}>
+                <Text style={styles.userInputTitle}>Your Inputs</Text>
+                <Text style={styles.userInputText}>
+                  Current Weight Load: {analysisResult.user.load} kg {"\n"}
+                  Current Sets: {analysisResult.user.sets} {"\n"}
+                  Current Reps: {analysisResult.user.reps}
+                </Text>
+              </View>
+            )}
             {recommendation && (
-  <View style={styles.recommendationContainer}>
-    <Text style={styles.recommendationTitle}>AI Recommendation</Text>
-    <Text style={styles.recommendationText}>
-      Recommended Reps: {recommendation.recommended_reps} {"\n"}
-      Recommended Sets: {recommendation.recommended_sets} {"\n"}
-      Recommended Weight: {recommendation.recommended_weight} kg
-    </Text>
-  </View>
-)}
+              <View style={styles.recommendationContainer}>
+                <Text style={styles.recommendationTitle}>AI Recommendation</Text>
+                <Text style={styles.recommendationText}>
+                  Recommended Weight: {Math.round(recommendation.recommended_weight)} kg {"\n"}
+                  Recommended Sets: {recommendation.recommended_sets} {"\n"}
+                  Recommended Reps: {recommendation.recommended_reps}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity style={styles.button} onPress={() => navigation.navigate("Home")}>
                 <Text style={styles.buttonText}>Finish Session</Text>
             </TouchableOpacity>
@@ -244,4 +249,26 @@ recommendationText: {
   },
   buttonText: { fontWeight: "bold", color: "#000", fontSize: 16 },
   text: { fontSize: 16, color: "white", marginBottom: 10, textAlign: 'center' },
+
+  userInputContainer: {
+  backgroundColor: "rgba(0,0,0,0.6)",
+  padding: 15,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: "#00CFFF55",
+  marginTop: 20,
+},
+userInputTitle: {
+  fontSize: 18,
+  fontWeight: "bold",
+  color: "#00CFFF",
+  textAlign: "center",
+  marginBottom: 8,
+},
+userInputText: {
+  fontSize: 16,
+  color: "#fff",
+  textAlign: "center",
+  lineHeight: 22,
+},
 });

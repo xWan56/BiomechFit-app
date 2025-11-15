@@ -10,16 +10,15 @@ L_FOOT_INDEX = mp.solutions.pose.PoseLandmark.LEFT_FOOT_INDEX.value
 
 class SquatAnalyzer(BaseAnalyzer):
     """
-    Expert-based Squat analyzer (calibrated for 2D Mediapipe angles).
-    Evaluates Hip Flexion, Knee Flexion, and Ankle Dorsiflexion.
-    Returns 1–5 score per rep.
+    Expert-based Squat analyzer with countdown and readiness.
     """
     def __init__(self):
-        super().__init__()
+        super().__init__(required_landmarks=[
+            L_SHOULDER, L_HIP, L_KNEE, L_ANKLE, L_FOOT_INDEX
+        ])
         self.stage = "up"
 
     def rate_angle(self, angle, ideal_min, ideal_max, tolerance=20):
-        """More forgiving 1–5 rating for 2D camera variations."""
         if ideal_min <= angle <= ideal_max:
             return 5
         elif abs(angle - ideal_min) <= tolerance or abs(angle - ideal_max) <= tolerance:
@@ -34,43 +33,58 @@ class SquatAnalyzer(BaseAnalyzer):
     def analyze_form(self, hip_angle, knee_angle, ankle_angle):
         issues = []
 
-        # Calibrated ideal ranges for 2D squat tracking
-        hip_score = self.rate_angle(hip_angle, 130, 160)  # typical visible range
+        hip_score = self.rate_angle(hip_angle, 130, 160)
         knee_score = self.rate_angle(knee_angle, 100, 140)
         ankle_score = self.rate_angle(ankle_angle, 80, 110)
 
-        # Feedback
         if hip_score < 5:
             if hip_angle < 130:
-                issues.append("Go slightly deeper to engage glutes and maintain balance.")
+                issues.append("Go slightly deeper to engage glutes.")
             elif hip_angle > 160:
                 issues.append("Excessive torso lean — keep chest upright.")
         if knee_score < 5:
             if knee_angle > 140:
-                issues.append("Shallow squat — go deeper for full range of motion.")
+                issues.append("Shallow squat — go deeper.")
             elif knee_angle < 100:
                 issues.append("Too deep — avoid dropping below parallel.")
         if ankle_score < 5:
             if ankle_angle < 80:
-                issues.append("Limited ankle dorsiflexion — may cause heel lift.")
+                issues.append("Limited ankle dorsiflexion — heels may lift.")
             elif ankle_angle > 110:
-                issues.append("Excessive dorsiflexion — check stance width.")
+                issues.append("Too much dorsiflexion — adjust stance width.")
 
-        # Weighted average (Hip 5, Knee 5, Ankle 4)
         final_score = round(
-            (hip_score * 5 + knee_score * 5 + ankle_score * 4) / (5 + 5 + 4), 2
+            (hip_score * 5 + knee_score * 5 + ankle_score * 4) / 14, 2
         )
 
-        # Prevent all-1 scores when form is acceptable
         if final_score < 2:
             final_score = 2
 
         return final_score, issues
 
     def process_frame(self, landmarks):
+
+        # -------------------------------------
+        # 1. Wait until ALL required joints exist
+        # -------------------------------------
+        if not self.ready:
+            if self._all_joints_detected(landmarks):
+                self.ready = True
+            else:
+                return 0, ["Waiting for full body detection..."], None
+
+        # -------------------------------------
+        # 2. 3-second countdown
+        # -------------------------------------
+        if not self.countdown_done:
+            msg = self._handle_start_countdown()
+            return 0, [msg], None
+
+        # -------------------------------------
+        # 3. Normal squat logic
+        # -------------------------------------
         self.form_issues = []
         stage_changed = None
-        current_score = 5
 
         try:
             l_shoulder = self.get_landmark_coords(landmarks, L_SHOULDER)
@@ -83,11 +97,14 @@ class SquatAnalyzer(BaseAnalyzer):
             knee_angle = calculate_angle(l_hip, l_knee, l_ankle)
             ankle_angle = calculate_angle(l_knee, l_ankle, l_toe)
 
-            current_score, feedback = self.analyze_form(hip_angle, knee_angle, ankle_angle)
+            current_score, feedback = self.analyze_form(
+                hip_angle, knee_angle, ankle_angle
+            )
             self.form_issues.extend(feedback)
 
             if knee_angle < 140 and self.stage == "up":
                 self.stage = "down"
+
             if knee_angle > 170 and self.stage == "down":
                 self.stage = "up"
                 stage_changed = "rep"
